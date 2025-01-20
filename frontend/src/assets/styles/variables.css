@@ -1,0 +1,15 @@
+/* src/assets/styles/variables.css */
+:root {
+    --color-cambridge-blue: #90C5B0;
+    --color-verdigris: #67A39F;
+    --color-ash-gray: #CAD7D4;
+    --color-indigo: #155470;
+    --color-platinum: #DCE0DE;
+    
+    /* Variables semánticas */
+    --color-primary: var(--color-indigo);
+    --color-secondary: var(--color-verdigris);
+    --color-background: var(--color-platinum);
+    --color-surface: var(--color-ash-gray);
+    --color-accent: var(--color-cambridge-blue);
+  }
