@@ -1,21 +1,44 @@
 // src/controllers/authController.js
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const pool = require('../config/database');
+const { pool } = require('../config/database');
 
 class AuthController {
     static async login(req, res) {
         try {
+            // Log detallado de la solicitud
+        console.log('Solicitud de login recibida:', {
+            body: req.body,
+            headers: req.headers
+        });
+
+            
             const { email, password } = req.body;
 
-            const [users] = await pool.execute(
-                'SELECT * FROM users WHERE email = ?',
-                [email]
-            );
+             // Validaciones de entrada
+        if (!email || !password) {
+            console.warn('Intento de login sin email o contraseña');
+            return res.status(400).json({ 
+                error: 'Email y contraseña son requeridos',
+                details: 'Ambos campos deben estar completos'
+            });
+        }
 
-            if (users.length === 0) {
-                return res.status(401).json({ error: 'Credenciales inválidas' });
-            }
+        // Consulta a la base de datos
+        const [users] = await pool.query(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
+
+        console.log('Usuarios encontrados:', users.length);
+
+        if (users.length === 0) {
+            console.warn(`Intento de login con email no existente: ${email}`);
+            return res.status(401).json({ 
+                error: 'Credenciales inválidas',
+                details: 'No se encontró un usuario con este email'
+            });
+        }
 
             const user = users[0];
             const validPassword = await bcrypt.compare(password, user.password);
@@ -26,35 +49,106 @@ class AuthController {
 
             const token = jwt.sign(
                 { id: user.id, email: user.email },
-                process.env.JWT_SECRET,
+                process.env.JWT_SECRET || 'fallback_secret', // Agrega un fallback
                 { expiresIn: '24h' }
             );
 
-            res.json({ token, user: { id: user.id, email: user.email } });
+            res.json({ 
+                token, 
+                user: { 
+                    id: user.id, 
+                    email: user.email,
+                    name: user.name 
+                } 
+            });
         } catch (error) {
-            res.status(500).json({ error: 'Error en el servidor' });
+            console.error('Error en login:', error);
+            res.status(500).json({ 
+                error: 'Error en el servidor', 
+                details: error.message 
+            });
         }
     }
 
+
+    // Método de registro nuevo
     static async register(req, res) {
         try {
             const { email, password, name } = req.body;
+
+            // Validar entrada
+            if (!email || !password || !name) {
+                return res.status(400).json({ 
+                    error: 'Todos los campos son requeridos' 
+                });
+            }
+
+            // Verificar si el usuario ya existe
+            const [existingUsers] = await pool.query(
+                'SELECT * FROM users WHERE email = ?',
+                [email]
+            );
+
+            if (existingUsers.length > 0) {
+                return res.status(409).json({ 
+                    error: 'El usuario ya existe' 
+                });
+            }
+
+            // Hashear contraseña
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            const [result] = await pool.execute(
+            // Insertar nuevo usuario
+            const [result] = await pool.query(
                 'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
                 [email, hashedPassword, name]
             );
 
+            // Generar token
             const token = jwt.sign(
                 { id: result.insertId, email },
-                process.env.JWT_SECRET,
+                process.env.JWT_SECRET || 'fallback_secret',
                 { expiresIn: '24h' }
             );
 
-            res.status(201).json({ token });
+            res.status(201).json({ 
+                token,
+                user: { 
+                    id: result.insertId, 
+                    email, 
+                    name 
+                }
+            });
         } catch (error) {
-            res.status(500).json({ error: 'Error en el servidor' });
+            console.error('Error en registro:', error);
+            res.status(500).json({ 
+                error: 'Error en el servidor', 
+                details: error.message 
+            });
+        }}
+    
+    static async verifyAuth(req, res) {
+        try {
+            // El token ya ha sido verificado por el middleware authMiddleware.verifyToken
+            // Aquí solo necesitamos devolver la información del usuario
+            const [users] = await pool.execute(
+                'SELECT id, email, name FROM users WHERE id = ?',
+                [req.user.id]
+            );
+    
+            if (users.length === 0) {
+                return res.status(401).json({ error: 'Usuario no encontrado' });
+            }
+    
+            const user = users[0];
+            res.json({
+                id: user.id,
+                email: user.email,
+                name: user.name
+            });
+        } catch (error) {
+            console.error('Error en verificación de autenticación:', error);
+            res.status(500).json({ error: 'Error interno del servidor' });
         }
     }
 

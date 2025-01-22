@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const config = require('./src/config/config');
+require('dotenv').config();
 const { testConnection } = require('./src/config/database');
 const { setupDatabase } = require('./src/db/setupDatabase');
 
@@ -22,13 +23,19 @@ const rateLimitMiddleware = require('./src/middlewares/rateLimitMiddleware');
 const app = express();
 
 // Middlewares básicos
-app.use(cors(config.CORS_OPTIONS));
+app.use(cors({
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+  }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(loggingMiddleware.requestLogger);
 
 // Rate Limiting
-app.use('/api', rateLimitMiddleware.apiLimiter);
-app.use('/api/auth/login', rateLimitMiddleware.loginLimiter);
+//app.use('/api', rateLimitMiddleware.apiLimiter);
+//app.use('/api/auth/login', rateLimitMiddleware.loginLimiter);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -45,6 +52,12 @@ app.use('/api/auth', authRoutes);
 // Middleware de autenticación para rutas protegidas
 app.use('/api', authMiddleware.verifyToken);
 
+// Middleware de logging para depuración
+app.use((req, res, next) => {
+    console.log(`Incoming ${req.method} request to ${req.path}`);
+    next();
+  });
+
 // Rutas protegidas
 app.use('/api/expenses', validationMiddleware.validateExpense, expenseRoutes);
 app.use('/api/budget', validationMiddleware.validateBudget, budgetRoutes);
@@ -58,6 +71,18 @@ app.use('*', errorMiddleware.notFound);
 app.use(loggingMiddleware.errorLogger);
 app.use(errorMiddleware.errorHandler);
 
+
+//datos de ejeplo de usuario 
+const seedUser = async () => {
+    const userExists = await User.findOne({ email: 'dianilla75@gmail.com' });
+    if (!userExists) {
+      const hashedPassword = await bcrypt.hash('123456', 10);
+      await User.create({ email: 'dianilla75@gmail.com', password: hashedPassword });
+      console.log('Usuario inicial creado');
+    }
+  };
+  
+
 // Función de inicio del servidor
 const startServer = async () => {
     try {
@@ -68,6 +93,8 @@ const startServer = async () => {
         // Configurar base de datos
         await setupDatabase();
         console.log('✅ Base de datos configurada correctamente');
+     
+        
 
         // Iniciar servidor
         const server = app.listen(config.PORT, () => {

@@ -1,5 +1,5 @@
-// src/middlewares/rateLimitMiddleware.js
-const rateLimit = require('express-rate-limit');
+
+/*const rateLimit = require('express-rate-limit');
 
 const rateLimitMiddleware = {
     apiLimiter: rateLimit({
@@ -33,4 +33,4 @@ const rateLimitMiddleware = {
     })
 };
 
-module.exports = rateLimitMiddleware;
+module.exports = rateLimitMiddleware;*/

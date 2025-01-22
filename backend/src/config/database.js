@@ -22,7 +22,10 @@ const testConnection = async () => {
       throw error;
     }
   };
-
+const seedUser = async () => {
+  const hashedPassword = await bcrypt.hash('123456', 10);
+  await User.create({ email: 'dianilla75@gmail.com', password: hashedPassword });
+};
 
   module.exports = {
     pool,
