@@ -6,30 +6,20 @@ const authMiddleware = {
     verifyToken: async (req, res, next) => {
         try {
             const token = req.headers.authorization?.split(' ')[1];
+            if (!token) return res.status(401).json({ error: 'Token no proporcionado' });
 
-            if (!token) {
-                return res.status(401).json({ error: 'Token no proporcionado' });
-            }
-
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            
-            // Verificar si el usuario existe en la base de datos
-            const [users] = await pool.execute(
-                'SELECT id, email FROM users WHERE id = ?',
-                [decoded.id]
-            );
-
-            if (users.length === 0) {
-                return res.status(401).json({ error: 'Usuario no válido' });
-            }
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+            const [users] = await pool.execute('SELECT id, email FROM users WHERE id = ?', [decoded.id]);
+            if (users.length === 0) return res.status(401).json({ error: 'Usuario no válido' });
 
             req.user = decoded;
             next();
         } catch (error) {
             console.error('Error de autenticación:', error);
-            return res.status(401).json({ error: 'Token inválido' });
+            return res.status(401).json({ error: error.name === 'TokenExpiredError' ? 'Token expirado' : 'Token inválido' });
         }
-    },
+    }
+};
 
     checkRole: (roles) => {
         return async (req, res, next) => {
@@ -45,10 +35,11 @@ const authMiddleware = {
 
                 next();
             } catch (error) {
+                console.error('Error verificando roles:', error);
                 next(error);
             }
         };
-    }
-};
+    };
+
 
 module.exports = authMiddleware;

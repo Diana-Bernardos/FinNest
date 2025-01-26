@@ -49,7 +49,7 @@ class AuthController {
 
             const token = jwt.sign(
                 { id: user.id, email: user.email },
-                process.env.JWT_SECRET || 'fallback_secret', // Agrega un fallback
+                process.env.JWT_SECRET,
                 { expiresIn: '24h' }
             );
 
@@ -72,60 +72,55 @@ class AuthController {
 
 
     // Método de registro nuevo
-    static async register(req, res) {
-        try {
-            const { email, password, name } = req.body;
+   // En tu backend, AuthController.register
+static async register(req, res) {
+    try {
+        const { email, password, name } = req.body;
 
-            // Validar entrada
-            if (!email || !password || !name) {
-                return res.status(400).json({ 
-                    error: 'Todos los campos son requeridos' 
-                });
-            }
+        // Validaciones
+        if (!email || !password || !name) {
+            return res.status(400).json({ error: 'Datos incompletos' });
+        }
 
-            // Verificar si el usuario ya existe
-            const [existingUsers] = await pool.query(
-                'SELECT * FROM users WHERE email = ?',
-                [email]
-            );
+        // Verificar si ya existe
+        const [existingUsers] = await pool.query(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
 
-            if (existingUsers.length > 0) {
-                return res.status(409).json({ 
-                    error: 'El usuario ya existe' 
-                });
-            }
+        if (existingUsers.length > 0) {
+            return res.status(409).json({ error: 'Usuario ya registrado' });
+        }
 
-            // Hashear contraseña
-            const hashedPassword = await bcrypt.hash(password, 10);
+        // Hashear contraseña
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-            // Insertar nuevo usuario
-            const [result] = await pool.query(
-                'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-                [email, hashedPassword, name]
-            );
+        // Insertar usuario
+        const [result] = await pool.query(
+            'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
+            [email, hashedPassword, name]
+        );
 
-            // Generar token
-            const token = jwt.sign(
-                { id: result.insertId, email },
-                process.env.JWT_SECRET || 'fallback_secret',
-                { expiresIn: '24h' }
-            );
+        // Generar token
+        const token = jwt.sign(
+            { id: result.insertId, email },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
 
-            res.status(201).json({ 
-                token,
-                user: { 
-                    id: result.insertId, 
-                    email, 
-                    name 
-                }
-            });
-        } catch (error) {
-            console.error('Error en registro:', error);
-            res.status(500).json({ 
-                error: 'Error en el servidor', 
-                details: error.message 
-            });
-        }}
+        res.status(201).json({ 
+            token, 
+            user: { 
+                id: result.insertId, 
+                email, 
+                name 
+            } 
+        });
+    } catch (error) {
+        console.error('Error de registro:', error);
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
+}
     
     static async verifyAuth(req, res) {
         try {

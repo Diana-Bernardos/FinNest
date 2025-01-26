@@ -1,14 +1,16 @@
 // src/App.jsx
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import MainDashboard from './components/dashboard/MainDashboard';
 import LoadingSpinner from './components/common/LoadingSpinner'; 
 import ErrorAlert from './components/common/ErrorAlert';
 import LoginForm from './components/auth/LoginForm';
+import RegisterForm from './components/auth/RegisterForm';
 
 const App = () => {
+  const [showRegister, setShowRegister] = useState(false);
   const { 
     isAuthenticated, 
     loading, 
@@ -28,13 +30,24 @@ const App = () => {
   }
 
   // Renderizado condicional basado en autenticación
-  return isAuthenticated ? (
-    <MainDashboard 
-      user={user} 
-      onLogout={logout} 
+  if (isAuthenticated) {
+    return (
+      <MainDashboard 
+        user={user} 
+        onLogout={logout} 
+      />
+    );
+  }
+
+  // Alternar entre login y registro
+  return showRegister ? (
+    <RegisterForm 
+      onSwitchToLogin={() => setShowRegister(false)} 
     />
   ) : (
-    <LoginForm />
+    <LoginForm 
+      onSwitchToRegister={() => setShowRegister(true)} 
+    />
   );
 };
 

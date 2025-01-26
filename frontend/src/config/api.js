@@ -1,20 +1,70 @@
-// src/services/api.js
 import axios from 'axios';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000, // 10 segundos de timeout
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true
 });
 
-// Interceptor para agregar token a cada solicitud
+// Handle API Errors consistently
+const handleApiError = (error) => {
+  // Log error for debugging
+  console.error('API Error:', error);
+
+  // Network or connection errors
+  if (!error.response) {
+    return Promise.reject(new Error('Error de conexión al servidor'));
+  }
+
+  // Get the most specific error message available
+  const errorMessage = 
+    error.response?.data?.details || 
+    error.response?.data?.error ||
+    error.response?.data?.message ||
+    error.message ||
+    'Ha ocurrido un error inesperado';
+
+  // Handle specific status codes
+  switch (error.response?.status) {
+    case 400:
+      console.error('Error de validación:', errorMessage);
+      break;
+    case 401:
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      break;
+    case 403:
+      console.error('Error de permisos:', errorMessage);
+      break;
+    case 404:
+      console.error('Recurso no encontrado:', errorMessage);
+      break;
+    case 500:
+      console.error('Error del servidor:', errorMessage);
+      break;
+    default:
+      console.error('Error no manejado:', errorMessage);
+  }
+
+  return Promise.reject(new Error(errorMessage));
+};
+
+// Response Interceptor
+axiosInstance.interceptors.response.use(
+  response => response,
+  handleApiError
+);
+
+// Request Interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Verificar si está en el navegador para evitar errores en SSR
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       if (token) {
@@ -23,89 +73,44 @@ axiosInstance.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
 
-// Servicios de autenticación
 export const authService = {
-
   register: async (userData) => {
     try {
       const response = await axiosInstance.post('/auth/register', userData);
-      
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
       }
-
       return response.data;
     } catch (error) {
-      console.error('Error de registro:', error);
-      
-      const errorMessage = 
-        error.response?.data?.error || 
-        error.message || 
-        'Error al registrar';
-      
-      throw new Error(errorMessage);
+      throw handleApiError(error);
     }
   },
+
   verifyAuth: async () => {
     try {
       const response = await axiosInstance.get('/auth/verify');
       return response.data;
     } catch (error) {
-      // Limpiar token si la verificación falla
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
       }
-
-      console.error('Error de verificación:', error);
-      
-      const errorMessage = 
-        error.response?.data?.details || 
-        error.response?.data?.error || 
-        error.message || 
-        'Error de autenticación';
-      
-      throw new Error(errorMessage);
+      throw handleApiError(error);
     }
   },
 
   login: async (credentials) => {
     try {
-      console.log('URL de base:', axiosInstance.defaults.baseURL);
-      console.log('Credenciales de login:', credentials);
-
       const response = await axiosInstance.post('/auth/login', credentials);
-      
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
       }
-
       return response.data;
     } catch (error) {
-      console.error('Error de red completo:', error);
-      
-      // Log detallado de errores de red
-      if (error.message === 'Network Error') {
-        console.error('Detalles de error de red:', {
-          baseURL: axiosInstance.defaults.baseURL,
-          mensaje: 'No se pudo conectar al servidor. Verifica que el backend esté corriendo.',
-          error: error
-        });
-      }
-      
-      const errorMessage = 
-        error.response?.data?.details || 
-        error.response?.data?.error || 
-        error.message || 
-        'Error al iniciar sesión';
-      
-      throw new Error(errorMessage);
+      throw handleApiError(error);
     }
-
   },
 
   logout: () => {
@@ -116,42 +121,96 @@ export const authService = {
   }
 };
 
-// Servicios de gastos
 export const expenseService = {
-  getAll: () => axiosInstance.get('/expenses'),
-  create: (expense) => axiosInstance.post('/expenses', expense),
-  getMonthlySummary: () => axiosInstance.get('/expenses/monthly-summary'),
-  update: (id, expense) => axiosInstance.put(`/expenses/${id}`, expense),
-  delete: (id) => axiosInstance.delete(`/expenses/${id}`),
+  getMonthlySummary: async () => {
+    try {
+      const response = await axiosInstance.get('/expenses/monthly-summary');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
 };
 
-// Servicios de categorías
 export const categoryService = {
-  getAll: () => axiosInstance.get('/categories'),
-  create: (category) => axiosInstance.post('/categories', category),
-  getStats: (id) => axiosInstance.get(`/categories/${id}/stats`),
-  checkLimits: () => axiosInstance.get('/categories/limits/check'),
+  getAll: async () => {
+    try {
+      const response = await axiosInstance.get('/categories');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
 };
 
-// Servicios de presupuesto
 export const budgetService = {
-  getCurrent: () => axiosInstance.get('/budget/current'),
-  createOrUpdate: (budget) => axiosInstance.post('/budget', budget),
-  getHistory: () => axiosInstance.get('/budget/history'),
-  getAlerts: () => axiosInstance.get('/budget/alerts'),
-  updateThreshold: (threshold) => 
-    axiosInstance.put('/budget/threshold', { threshold }),
+  getCurrent: async () => {
+    try {
+      const response = await axiosInstance.get('/budget/current');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
 };
 
-// Servicios de análisis
 export const analysisService = {
-  getCurrent: () => axiosInstance.get('/analysis/current'),
-  getTrends: () => axiosInstance.get('/analysis/trends'),
-  getRecommendations: () => axiosInstance.get('/analysis/recommendations'),
-  getHistory: () => axiosInstance.get('/analysis/history'),
-  exportReport: () => axiosInstance.get('/analysis/export'),
-  getBudgetAnalysis: () => axiosInstance.get('/analysis/budget-analysis'),
-  getAlerts: () => axiosInstance.get('/analysis/alerts'),
+  getCurrent: async () => {
+    try {
+      const response = await axiosInstance.get('/analysis/current');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getTrends: async () => {
+    try {
+      const response = await axiosInstance.get('/analysis/trends');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getRecommendations: async () => {
+    try {
+      const response = await axiosInstance.get('/analysis/recommendations');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getHistory: async () => {
+    try {
+      const response = await axiosInstance.get('/analysis/history');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  exportReport: async () => {
+    try {
+      const response = await axiosInstance.get('/analysis/export');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getBudgetAnalysis: async () => {
+    try {
+      const response = await axiosInstance.get('/analysis/budget-analysis');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getAlerts: async () => {
+    try {
+      const response = await axiosInstance.get('/analysis/alerts');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
 };
 
 export default axiosInstance;

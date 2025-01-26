@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #2F436D;
+  --secondary: #B6BECD;
+  --accent: #7D8B9D;
+  --background: #F8FAFC;
+  --foreground: #0E0F17;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+}

@@ -1,6 +1,6 @@
 // src/app/layout.js
 import { Inter } from 'next/font/google';
-import '../assets/styles/globals.css';
+import '@/app/styles/globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -11,12 +11,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es">
-      <body className={inter.className}>
-        <main className="min-h-screen bg-[#F8FAFC]">
-          {children}
-        </main>
-      </body>
+    <html lang="es" suppressHydrationWarning>
+      <body className={inter.className}>{children}</body>
     </html>
   );
 }

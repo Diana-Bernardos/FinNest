@@ -1,75 +1,90 @@
-// src/components/auth/LoginForm.jsx
 import React, { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Alert, AlertTitle } from '../ui/alert';
 
 const LoginForm = () => {
-  const [credentials, setCredentials] = useState({ 
-    email: '', 
-    password: '' 
+  const [credentials, setCredentials] = useState({
+    email: '',
+    password: ''
   });
-  const { login, loading, error } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await login(credentials);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('http://localhost:3001/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+      console.log('Respuesta del login:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error en el inicio de sesión');
+      }
+
+      localStorage.setItem('token', data.token);
+      window.location.href = '/dashboard';
+      
+    } catch (error) {
+      console.error('Error de login:', error);
+      setError(error.message || 'Error al iniciar sesión');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-4">
-      <div className="max-w-md w-full space-y-8 bg-white p-6 rounded-lg shadow-md">
-        <div>
-          <h2 className="text-3xl font-bold text-center text-[#2F436D]">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-2xl text-center text-[#2F436D]">
             Mi Economía Familiar
-          </h2>
-          <p className="mt-2 text-center text-[#7D8B9D]">
-            Inicia sesión para continuar
-          </p>
-        </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTitle>{error}</AlertTitle>
+              </Alert>
+            )}
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          {error && (
-            <div className="bg-red-50 text-red-800 p-3 rounded">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-4">
             <input
               type="email"
               value={credentials.email}
-              onChange={(e) => setCredentials({ 
-                ...credentials, 
-                email: e.target.value 
-              })}
+              onChange={(e) => setCredentials({...credentials, email: e.target.value})}
               placeholder="Email"
-              className="w-full p-3 border border-[#B6BECD] rounded"
+              className="w-full p-2 rounded-md border border-[#B6BECD]"
               required
             />
 
             <input
               type="password"
               value={credentials.password}
-              onChange={(e) => setCredentials({ 
-                ...credentials, 
-                password: e.target.value 
-              })}
+              onChange={(e) => setCredentials({...credentials, password: e.target.value})}
               placeholder="Contraseña"
-              className="w-full p-3 border border-[#B6BECD] rounded"
+              className="w-full p-2 rounded-md border border-[#B6BECD]"
               required
             />
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full p-3 text-white rounded
-              ${loading ? 'bg-[#B6BECD]' : 'bg-[#2F436D] hover:bg-[#222841]'}
-              transition-colors duration-200`}
-          >
-            {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
-          </button>
-        </form>
-      </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#2F436D] text-white p-2 rounded-md hover:bg-[#222841] disabled:bg-[#B6BECD]"
+            >
+              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+            </button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 };

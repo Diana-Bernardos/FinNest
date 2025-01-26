@@ -6,31 +6,26 @@ class CategoryController {
     // Obtener todas las categorías
     static async getAllCategories(req, res) {
         try {
-            const userId = req.user.id;
-            const { includeStats = false } = req.query;
-
-            const categories = await CategoryService.getAllCategories(userId);
-
-            if (includeStats) {
-                const month = new Date().toISOString().slice(0, 7);
-                const stats = await CategoryService.getCategoryStats(userId, month);
-                
-                const categoriesWithStats = categories.map(category => ({
-                    ...category,
-                    stats: stats.find(stat => stat.category_id === category.id) || {
-                        total_spent: 0,
-                        transaction_count: 0,
-                        average_expense: 0
-                    }
-                }));
-
-                return res.json(categoriesWithStats);
-            }
-
+            const [categories] = await pool.query(`
+                SELECT 
+                    ec.id, 
+                    ec.name, 
+                    ec.budget_limit,
+                    ec.is_fixed,
+                    COALESCE(SUM(e.amount), 0) as total_amount
+                FROM expense_categories ec
+                LEFT JOIN expenses e ON ec.id = e.category_id AND e.user_id = ?
+                GROUP BY ec.id, ec.name, ec.budget_limit, ec.is_fixed
+                ORDER BY total_amount DESC
+            `, [req.user.id]);
+    
             res.json(categories);
         } catch (error) {
-            console.error('Error getting categories:', error);
-            res.status(500).json({ error: 'Error al obtener las categorías' });
+            console.error('Categories error:', error);
+            res.status(500).json({ 
+                error: 'Failed to retrieve categories',
+                details: error.message 
+            });
         }
     }
 
@@ -41,6 +36,7 @@ class CategoryController {
             const categoryData = {
                 ...req.body,
                 user_id: userId
+               
             };
 
             // Verificar si ya existe una categoría con el mismo nombre
@@ -56,7 +52,7 @@ class CategoryController {
             }
 
             const newCategory = await CategoryService.createCategory(categoryData);
-            res.status(201).json(newCategory);
+            res.send(201).json(newCategory);
         } catch (error) {
             console.error('Error creating category:', error);
             res.status(500).json({ error: 'Error al crear la categoría' });

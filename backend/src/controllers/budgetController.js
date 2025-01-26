@@ -4,61 +4,71 @@ const { ExpenseService } = require('../services/expenseService');
 class BudgetController {
     static async getCurrentBudget(req, res) {
         try {
-            console.log('Solicitando presupuesto actual para el usuario:', req.user);
-
-            const userId = req.user.id;
-            const { month = new Date().toISOString().slice(0, 7) } = req.query;
-
-            const budget = await BudgetService.getCurrentBudget(userId, month);
-            const expenses = await ExpenseService.getMonthlySummary(userId, month);
-
-            console.log('Presupuesto:', budget, 'Gastos:', expenses);
-
-            res.json({
-                budget,
-                expenses,
-                analysis: {
-                    remainingBudget: budget.total_budget - expenses.total_spent,
-                    percentageUsed: ((expenses.total_spent / budget.total_budget) * 100).toFixed(2),
-                    daysRemaining: BudgetService.getRemainingDays(month),
-                    dailyBudget: BudgetService.calculateDailyBudget(
-                        budget.total_budget - expenses.total_spent,
-                        BudgetService.getRemainingDays(month)
-                    )
-                }
+            const [budget] = await pool.query(`
+                SELECT 
+                    COALESCE(total_budget, 0) as total_budget,
+                    COALESCE(SUM(e.amount), 0) as total_spent,
+                    COALESCE(total_budget - COALESCE(SUM(e.amount), 0), 0) as remaining,
+                    COUNT(CASE WHEN e.is_unexpected = 1 THEN 1 END) as unexpected_count
+                FROM monthly_budget mb
+                LEFT JOIN expenses e ON MONTH(mb.month) = MONTH(e.date) AND e.user_id = ?
+                GROUP BY mb.total_budget
+            `, [req.user.id]);
+    
+            res.json(budget[0] || {
+                total_budget: 0,
+                total_spent: 0,
+                remaining: 0,
+                unexpected_count: 0
             });
         } catch (error) {
-            console.error('Error al obtener el presupuesto actual:', error.message);
-            res.status(500).json({ error: 'Error al obtener el presupuesto' });
+            console.error('Budget error:', error);
+            res.status(500).json({ 
+                error: 'Failed to retrieve budget',
+                details: error.message 
+            });
         }
     }
 
-    static async createOrUpdateBudget(req, res) {
+    static async create(req, res) {
         try {
-            console.log('Creando o actualizando presupuesto para:', req.user);
+            const { amount, category_id, month } = req.body;
 
-            const userId = req.user.id;
-            const budgetData = {
-                ...req.body,
-                user_id: userId
-            };
+            // Validar datos requeridos
+            if (!amount || isNaN(amount) || amount <= 0) {
+                return res.status(400).json({ error: 'El monto debe ser un número mayor que 0' });
+            }
 
-            const budget = await BudgetService.setMonthlyBudget(budgetData);
+            if (!month || isNaN(new Date(month).getTime())) {
+                return res.status(400).json({ error: 'El mes debe ser válido' });
+            }
 
-            const analysis = await BudgetService.analyzeBudgetFeasibility(
-                userId,
-                budgetData.month,
-                budgetData.total_budget
+            if (!category_id) {
+                return res.status(400).json({ error: 'La categoría es requerida' });
+            }
+
+            // Verificar si la categoría pertenece al usuario
+            const [categories] = await pool.execute(
+                'SELECT id FROM expense_categories WHERE id = ? AND user_id = ?',
+                [category_id, req.user.id]
             );
 
-            console.log('Presupuesto creado/actualizado:', budget);
-            res.json({ budget, analysis });
+            if (categories.length === 0) {
+                return res.status(400).json({ error: 'Categoría no válida' });
+            }
+
+            // Insertar presupuesto en la base de datos
+            const [result] = await pool.execute(
+                'INSERT INTO budgets (amount, category_id, month, user_id) VALUES (?, ?, ?, ?)',
+                [amount, category_id, month, req.user.id]
+            );
+
+            res.status(201).json({ id: result.insertId, message: 'Presupuesto creado correctamente' });
         } catch (error) {
-            console.error('Error al crear/actualizar presupuesto:', error.message);
-            res.status(500).json({ error: 'Error al establecer el presupuesto' });
+            console.error('Error al crear presupuesto:', error);
+            res.status(500).json({ error: 'Error interno del servidor' });
         }
     }
-
 
     // Obtener historial de presupuestos
     static async getBudgetHistory(req, res) {

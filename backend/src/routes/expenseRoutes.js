@@ -1,25 +1,16 @@
 const express = require('express');
 const router = express.Router();
+const { pool } = require('../config/database');
+const { verifyToken } = require('../middlewares/authMiddleware');
+const { validateExpense } = require('../middlewares/validationMiddleware');
 const ExpenseController = require('../controllers/expenseController');
 
-router.get('/', async (req, res) => {
-    await ExpenseController.getAll(req, res);
-});
+router.use(verifyToken);
 
-router.post('/', async (req, res) => {
-    await ExpenseController.create(req, res);
-});
-
-router.get('/monthly-summary', async (req, res) => {
-    await ExpenseController.getMonthlySummary(req, res);
-});
-
-router.put('/:id', async (req, res) => {
-    await ExpenseController.update(req, res);
-});
-
-router.delete('/:id', async (req, res) => {
-    await ExpenseController.delete(req, res);
-});
+router.get('/', ExpenseController.getAll);
+router.post('/', validateExpense, ExpenseController.create);
+router.get('/monthly-summary', ExpenseController.getMonthlySummary);
+router.put('/update/:id', validateExpense, ExpenseController.update);
+router.delete('/:id', ExpenseController.delete);
 
 module.exports = router;

@@ -1,3 +1,4 @@
+// next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -9,6 +10,15 @@ const nextConfig = {
       },
     ];
   },
-};
-
-module.exports = nextConfig;
+  // Deshabilitar generación de Service Worker
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    return config;
+  },
+}

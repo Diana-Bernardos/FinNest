@@ -5,6 +5,7 @@ const config = require('./src/config/config');
 require('dotenv').config();
 const { testConnection } = require('./src/config/database');
 const { setupDatabase } = require('./src/db/setupDatabase');
+const { BudgetController } = require('./src/controllers/budgetController');
 
 // Importar rutas
 const authRoutes = require('./src/routes/authRoutes');
@@ -24,10 +25,12 @@ const app = express();
 
 // Middlewares básicos
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: process.env.NODE_ENV === 'development' 
+      ? ['http://localhost:3000', 'http://127.0.0.1:3000']
+      : ['tu-dominio-de-produccion.com'],
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    allowedHeaders: ['Content-Type', 'Authorization']
   }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -54,7 +57,11 @@ app.use('/api', authMiddleware.verifyToken);
 
 // Middleware de logging para depuración
 app.use((req, res, next) => {
-    console.log(`Incoming ${req.method} request to ${req.path}`);
+    console.log(`Incoming Request: 
+      - Method: ${req.method}
+      - Path: ${req.path}
+      - Headers: ${JSON.stringify(req.headers)}
+    `);
     next();
   });
 
